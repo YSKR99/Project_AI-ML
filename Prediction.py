@@ -1,66 +1,61 @@
 import os
 import requests
-from io import BytesIO
-from PIL import Image
-import numpy as np
-import tensorflow as tf
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
-# Function to fetch the latest image from Google Drive folder
-def fetch_latest_image(folder_url):
-    # Send a GET request to the folder URL
-    response = requests.get(folder_url)
-    # Extract image URLs from the HTML content
-    image_urls = [line.split('"')[1] for line in response.text.split('\n') if 'data-id' in line and 'href="/file/' in line]
-    print("Found image URLs:", image_urls)  # Debug line
-    # Check if there are any image URLs
-    if not image_urls:
-        print("No image URLs found in the folder.")
-        return None
-    # Get the URL of the latest image
-    latest_image_url = image_urls[-1]
-    return latest_image_url
+# Function to authenticate with Google Drive API
+def authenticate_with_google_drive(client_config):
+    SCOPES = ['https://www.googleapis.com/auth/drive']
 
-# Function to download image from URL
-def download_image(image_url, destination_path):
-    # Download the image
-    response = requests.get(image_url)
-    image_data = response.content
-    # Write the image data to a file
-    with open(destination_path, 'wb') as f:
-        f.write(image_data)
+    # Load OAuth credentials from a file
+    creds = None
+    if os.path.exists('credentials.json'):
+        creds = Credentials.from_authorized_user_file('credentials.json', SCOPES)
+    
+    # If credentials are not found or are invalid, initiate the OAuth flow to obtain new credentials
+    if not creds or not creds.valid:
+        flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+        creds = flow.run_local_server(port=0)
+    
+    # Save the credentials for future use
+    with open('credentials.json', 'w') as credentials_file:
+        credentials_file.write(creds.to_json())
+    
+    return creds
 
-# Function to preprocess image and predict number
-def predict_number(image_path, model):
-    # Open the image and convert to grayscale
-    img = Image.open(image_path).convert('L')
-    # Resize image to MNIST input size (28x28 pixels)
-    img = img.resize((28, 28))
-    # Convert image to numpy array and normalize pixel values
-    img_array = np.expand_dims(np.array(img), axis=0) / 255.0
-    # Predict the number using the loaded model
-    prediction = np.argmax(model.predict(img_array), axis=-1)
-    return prediction[0]
+# Function to list files in a Google Drive folder
+def list_files_in_folder(folder_id, client_config):
+    # Authenticate with Google Drive API
+    creds = authenticate_with_google_drive(client_config)
+    service = build('drive', 'v3', credentials=creds)
 
-# Main function
-def main():
-    # Load the pre-trained MNIST model
-    model = tf.keras.models.load_model('mnist_model.h5')  # Update with your model path
-    
-    # Google Drive folder URL
-    folder_url = 'https://drive.google.com/drive/folders/1XRfdSIle1WPrcmXS5kwbycN7tdIHJPlE/'
-    
-    # Fetch the URL of the latest image
-    latest_image_url = fetch_latest_image(folder_url)
-    
-    # Path to save the downloaded image
-    destination_path = 'downloaded_image.jpg'
-    
-    # Download the latest image
-    download_image(latest_image_url, destination_path)
-    
-    # Predict the number
-    predicted_number = predict_number(destination_path, model)
-    print('Predicted number:', predicted_number)
+    # List files in the specified folder
+    results = service.files().list(q=f"'{folder_id}' in parents", pageSize=10, fields="nextPageToken, files(id, name)").execute()
+    files = results.get('files', [])
 
-if __name__ == "__main__":
-    main()
+    if not files:
+        print('No files found in the folder.')
+    else:
+        print('Files in the folder:')
+        for file in files:
+            print(f'{file["name"]} ({file["id"]})')
+
+# OAuth 2.0 client configuration
+client_config = {
+  "installed": {
+    "client_id": "38484099262-7ut7lc9b9bat4jng34kouviocgqicdag.apps.googleusercontent.com",
+    "project_id": "myprojectai-420706",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_secret": "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",
+    "redirect_uris": ["http://localhost"]
+  }
+}
+
+# Folder ID of the folder in Google Drive
+folder_id = '1XRfdSIle1WPrcmXS5kwbycN7tdIHJPlE'
+
+# Call the function to list files in the specified folder
+list_files_in_folder(folder_id, client_config)

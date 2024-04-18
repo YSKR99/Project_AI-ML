@@ -11,6 +11,7 @@ def fetch_latest_image(folder_url):
     response = requests.get(folder_url)
     # Extract image URLs from the HTML content
     image_urls = [line.split('"')[1] for line in response.text.split('\n') if 'data-id' in line and 'href="/file/' in line]
+    print("Found image URLs:", image_urls)  # Debug line
     # Check if there are any image URLs
     if not image_urls:
         print("No image URLs found in the folder.")

@@ -7,10 +7,9 @@ import tensorflow as tf
 
 # Function to fetch the latest image from Google Drive folder
 def fetch_latest_image(folder_url):
-    # Assuming the folder URL is in the format you provided
-    # Fetch the list of files in the folder
+    # Send a GET request to the folder URL
     response = requests.get(folder_url)
-    # Extract image URLs from the response HTML content
+    # Extract image URLs from the HTML content
     image_urls = [line.split('"')[1] for line in response.text.split('\n') if 'data-id' in line and 'href="/file/' in line]
     # Get the URL of the latest image
     latest_image_url = image_urls[-1]
@@ -27,13 +26,17 @@ def download_image(image_url, destination_path):
 
 # Function to preprocess image and predict number
 def predict_number(image_path, model):
-    img = Image.open(image_path).convert('L')  # Convert image to grayscale
-    img = img.resize((28, 28))  # Resize image to MNIST input size
-    img_array = np.expand_dims(np.array(img), axis=0) / 255.0  # Normalize pixel values
+    # Open the image and convert to grayscale
+    img = Image.open(image_path).convert('L')
+    # Resize image to MNIST input size (28x28 pixels)
+    img = img.resize((28, 28))
+    # Convert image to numpy array and normalize pixel values
+    img_array = np.expand_dims(np.array(img), axis=0) / 255.0
+    # Predict the number using the loaded model
     prediction = np.argmax(model.predict(img_array), axis=-1)
     return prediction[0]
 
-# Example usage
+# Main function
 def main():
     # Load the pre-trained MNIST model
     model = tf.keras.models.load_model('mnist_model.h5')  # Update with your model path

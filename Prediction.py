@@ -1,61 +1,33 @@
 import os
-import requests
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.models import load_model
 
-# Function to authenticate with Google Drive API
-def authenticate_with_google_drive(client_config):
-    SCOPES = ['https://www.googleapis.com/auth/drive']
+# Define the URL of the image on Google Drive
+image_url = "https://drive.google.com/uc?id=IMAGE_ID"
 
-    # Load OAuth credentials from a file
-    creds = None
-    if os.path.exists('credentials.json'):
-        creds = Credentials.from_authorized_user_file('credentials.json', SCOPES)
-    
-    # If credentials are not found or are invalid, initiate the OAuth flow to obtain new credentials
-    if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-        creds = flow.run_local_server(port=0)
-    
-    # Save the credentials for future use
-    with open('credentials.json', 'w') as credentials_file:
-        credentials_file.write(creds.to_json())
-    
-    return creds
+# Download the image
+image_path = "image.jpg"
+os.system(f"wget -O {image_path} {image_url}")
 
-# Function to list files in a Google Drive folder
-def list_files_in_folder(folder_id, client_config):
-    # Authenticate with Google Drive API
-    creds = authenticate_with_google_drive(client_config)
-    service = build('drive', 'v3', credentials=creds)
+# Load and preprocess the image
+img = image.load_img(image_path, color_mode="grayscale", target_size=(28, 28))
+img_array = image.img_to_array(img)
+img_array = img_array / 255.0  # Normalize the pixel values
 
-    # List files in the specified folder
-    results = service.files().list(q=f"'{folder_id}' in parents", pageSize=10, fields="nextPageToken, files(id, name)").execute()
-    files = results.get('files', [])
+# Expand dimensions to match the input shape expected by the model
+img_array = np.expand_dims(img_array, axis=0)
 
-    if not files:
-        print('No files found in the folder.')
-    else:
-        print('Files in the folder:')
-        for file in files:
-            print(f'{file["name"]} ({file["id"]})')
+# Load the trained model
+model_path = "mnist_model.h5"
+model = load_model(model_path)
 
-# OAuth 2.0 client configuration
-client_config = {
-  "installed": {
-    "client_id": "38484099262-7ut7lc9b9bat4jng34kouviocgqicdag.apps.googleusercontent.com",
-    "project_id": "myprojectai-420706",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_secret": "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",
-    "redirect_uris": ["http://localhost"]
-  }
-}
+# Make predictions
+predictions = model.predict(img_array)
 
-# Folder ID of the folder in Google Drive
-folder_id = '1XRfdSIle1WPrcmXS5kwbycN7tdIHJPlE'
+# Get the predicted number
+predicted_number = np.argmax(predictions)
 
-# Call the function to list files in the specified folder
-list_files_in_folder(folder_id, client_config)
+# Display the predicted number
+print("Predicted Number:", predicted_number)
